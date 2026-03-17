@@ -196,158 +196,124 @@ def main():
     with tabs[0]:
         st.header("Business Metrics")
 
-        st.subheader("Transaction Volume")
+        _compact = dict(height=260, margin=dict(l=40, r=20, t=40, b=30),
+                        title_font_size=13,
+                        legend=dict(orientation="h", y=-0.25, font=dict(size=12)))
 
-        _dim_options_transaction_volume = ['transaction_type', 'payment_method', 'merchant_category', 'risk_tier', 'geography', 'settlement_days', 'fraud_flag', 'settled_flag', 'chargeback_flag']
-        _sel_dim_transaction_volume = st.selectbox(
-            "Break down by", ["(none)"] + _dim_options_transaction_volume,
-            key="dim_picker_transaction_volume")
+        _dim_options = ["Topline", "transaction_type", "payment_method", "merchant_category", "risk_tier", "geography"]
+        _sel_dim = st.radio("Dimension", _dim_options, index=0, horizontal=True, key="dim_radio")
+        _dim_col = None if _sel_dim == "Topline" else _sel_dim
 
-        metric_df = df
-        grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period)).size().reset_index()
-        grouped.columns = ["period", "transaction_volume"]
-        grouped["period"] = grouped["period"].astype(str)
+        # --- Row 1 ---
+        r1c1, r1c2, r1c3 = st.columns(3)
 
-        fig = px.bar(grouped, x="period", y="transaction_volume", title="Transaction Volume Over Time")
-        st.plotly_chart(fig, use_container_width=True)
-
-        if _sel_dim_transaction_volume != "(none)":
-            _dim_col = _sel_dim_transaction_volume
-            _dim_label = _dim_col.replace("_", " ").title()
-            if _dim_col in metric_df.columns:
-                dim_grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col]).size().reset_index()
-                dim_grouped.columns = ["period", _dim_col, "transaction_volume"]
-                dim_grouped["period"] = dim_grouped["period"].astype(str)
-                fig2 = px.bar(dim_grouped, x="period", y="transaction_volume", color=_dim_col, title=f"Transaction Volume by {_dim_label}", barmode="group")
-                st.plotly_chart(fig2, use_container_width=True)
-
-        st.divider()
-
-        st.subheader("Fee Revenue")
-
-        _dim_options_fee_revenue = ['transaction_type', 'payment_method', 'merchant_category', 'risk_tier', 'geography', 'settlement_days', 'fraud_flag', 'settled_flag', 'chargeback_flag']
-        _sel_dim_fee_revenue = st.selectbox(
-            "Break down by", ["(none)"] + _dim_options_fee_revenue,
-            key="dim_picker_fee_revenue")
-
-        metric_df = df
-        if "fee_amount" not in metric_df.columns:
-            st.warning("Column \"fee_amount\" not found in data — skipping Fee Revenue.")
-        else:
-            grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period))["fee_amount"].sum().reset_index()
-            grouped.columns = ["period", "fee_revenue"]
-            grouped["period"] = grouped["period"].astype(str)
-
-            fig = px.bar(grouped, x="period", y="fee_revenue", title="Fee Revenue Over Time")
+        with r1c1:
+            metric_df = df
+            if _dim_col and _dim_col in metric_df.columns:
+                grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col]).size().reset_index()
+                grouped.columns = ["period", _dim_col, "transaction_volume"]
+                grouped["period"] = grouped["period"].astype(str)
+                fig = px.bar(grouped, x="period", y="transaction_volume", color=_dim_col, title="Transaction Volume (#)", barmode="group")
+            else:
+                grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period)).size().reset_index()
+                grouped.columns = ["period", "transaction_volume"]
+                grouped["period"] = grouped["period"].astype(str)
+                fig = px.bar(grouped, x="period", y="transaction_volume", title="Transaction Volume (#)")
+            fig.update_layout(**_compact)
             st.plotly_chart(fig, use_container_width=True)
 
-            # Dimension breakdown
-        if _sel_dim_fee_revenue != "(none)":
-            _dim_col = _sel_dim_fee_revenue
-            _dim_label = _dim_col.replace("_", " ").title()
-            if _dim_col in metric_df.columns and "fee_amount" in metric_df.columns:
-                dim_grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col])["fee_amount"].sum().reset_index()
-                dim_grouped.columns = ["period", _dim_col, "fee_revenue"]
-                dim_grouped["period"] = dim_grouped["period"].astype(str)
-                fig2 = px.bar(dim_grouped, x="period", y="fee_revenue", color=_dim_col, title=f"Fee Revenue by {_dim_label}", barmode="group")
-                st.plotly_chart(fig2, use_container_width=True)
+        with r1c2:
+            metric_df = df
+            if "fee_amount" not in metric_df.columns:
+                st.warning("Column \"fee_amount\" not found — skipping Fee Revenue.")
+            else:
+                if _dim_col and _dim_col in metric_df.columns:
+                    grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col])["fee_amount"].sum().reset_index()
+                    grouped.columns = ["period", _dim_col, "fee_revenue"]
+                    grouped["period"] = grouped["period"].astype(str)
+                    fig = px.bar(grouped, x="period", y="fee_revenue", color=_dim_col, title="Fee Revenue ($)", barmode="group")
+                else:
+                    grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period))["fee_amount"].sum().reset_index()
+                    grouped.columns = ["period", "fee_revenue"]
+                    grouped["period"] = grouped["period"].astype(str)
+                    fig = px.bar(grouped, x="period", y="fee_revenue", title="Fee Revenue ($)")
+                fig.update_layout(**_compact)
+                st.plotly_chart(fig, use_container_width=True)
 
+        with r1c3:
+            metric_df = df
+            if "settlement_days" not in metric_df.columns:
+                st.warning("Column \"settlement_days\" not found — skipping Settlement Time.")
+            else:
+                if _dim_col and _dim_col in metric_df.columns:
+                    grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col])["settlement_days"].mean().reset_index()
+                    grouped.columns = ["period", _dim_col, "settlement_time"]
+                    grouped["period"] = grouped["period"].astype(str)
+                    fig = px.line(grouped, x="period", y="settlement_time", color=_dim_col, title="Settlement Time (days)", markers=True)
+                else:
+                    grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period))["settlement_days"].mean().reset_index()
+                    grouped.columns = ["period", "settlement_time"]
+                    grouped["period"] = grouped["period"].astype(str)
+                    fig = px.line(grouped, x="period", y="settlement_time", title="Settlement Time (days)", markers=True)
+                fig.update_layout(**_compact)
+                st.plotly_chart(fig, use_container_width=True)
 
-        st.divider()
+        # --- Row 2 ---
+        r2c1, r2c2, r2c3 = st.columns(3)
 
-        st.subheader("Settlement Time")
-
-        _dim_options_settlement_time = ['transaction_type', 'payment_method', 'merchant_category', 'risk_tier', 'geography', 'settlement_days', 'fraud_flag', 'settled_flag', 'chargeback_flag']
-        _sel_dim_settlement_time = st.selectbox(
-            "Break down by", ["(none)"] + _dim_options_settlement_time,
-            key="dim_picker_settlement_time")
-
-        metric_df = df
-        if "settlement_days" not in metric_df.columns:
-            st.warning("Column \"settlement_days\" not found in data — skipping Settlement Time.")
-        else:
-            grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period))["settlement_days"].mean().reset_index()
-            grouped.columns = ["period", "settlement_time"]
-            grouped["period"] = grouped["period"].astype(str)
-
-            fig = px.line(grouped, x="period", y="settlement_time", title="Settlement Time Over Time", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Dimension breakdown
-        if _sel_dim_settlement_time != "(none)":
-            _dim_col = _sel_dim_settlement_time
-            _dim_label = _dim_col.replace("_", " ").title()
-            if _dim_col in metric_df.columns and "settlement_days" in metric_df.columns:
-                dim_grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col])["settlement_days"].mean().reset_index()
-                dim_grouped.columns = ["period", _dim_col, "settlement_time"]
-                dim_grouped["period"] = dim_grouped["period"].astype(str)
-                fig2 = px.line(dim_grouped, x="period", y="settlement_time", color=_dim_col, title=f"Settlement Time by {_dim_label}", markers=True)
-                st.plotly_chart(fig2, use_container_width=True)
-
-
-        st.divider()
-
-        st.subheader("Fraud Exposure")
-
-        _dim_options_fraud_exposure = ['transaction_type', 'payment_method', 'merchant_category', 'risk_tier', 'geography', 'settlement_days', 'fraud_flag', 'settled_flag', 'chargeback_flag']
-        _sel_dim_fraud_exposure = st.selectbox(
-            "Break down by", ["(none)"] + _dim_options_fraud_exposure,
-            key="dim_picker_fraud_exposure")
-
-        num_df = df[(df["fraud_flag"] == 1)]
-        den_df = df[(df["settled_flag"] == 1)]
-        den_grouped = den_df.groupby(den_df["transaction_date"].dt.to_period(_period)).size()
-        num_grouped = num_df.groupby(num_df["transaction_date"].dt.to_period(_period)).size().reindex(den_grouped.index, fill_value=0)
-        ratio_df = (num_grouped / den_grouped).fillna(0).reset_index()
-        ratio_df.columns = ["period", "fraud_exposure"]
-        ratio_df["period"] = ratio_df["period"].astype(str)
-
-        if ratio_df.empty:
-            st.info("No data for Fraud Exposure in this period.")
-        else:
-            fig = px.line(ratio_df, x="period", y="fraud_exposure", title="Fraud Exposure Over Time", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
-
-        if _sel_dim_fraud_exposure != "(none)":
-            _dim_col = _sel_dim_fraud_exposure
-            _dim_label = _dim_col.replace("_", " ").title()
-            if _dim_col in num_df.columns:
+        with r2c1:
+            num_df = df[(df["fraud_flag"] == 1)]
+            den_df = df[(df["settled_flag"] == 1)]
+            if _dim_col and _dim_col in num_df.columns:
                 num_dim = num_df.groupby([num_df["transaction_date"].dt.to_period(_period), _dim_col]).size().unstack(fill_value=0)
                 den_dim = den_df.groupby([den_df["transaction_date"].dt.to_period(_period), _dim_col]).size().unstack(fill_value=0)
                 ratio_dim = (num_dim / den_dim).stack().reset_index()
                 ratio_dim.columns = ["period", _dim_col, "fraud_exposure"]
                 ratio_dim["period"] = ratio_dim["period"].astype(str)
-                fig2 = px.line(ratio_dim, x="period", y="fraud_exposure", color=_dim_col, title=f"Fraud Exposure by {_dim_label}", markers=True)
-                st.plotly_chart(fig2, use_container_width=True)
+                if ratio_dim.empty:
+                    st.info("No data for Fraud Exposure.")
+                else:
+                    fig = px.line(ratio_dim, x="period", y="fraud_exposure", color=_dim_col, title="Fraud Exposure (%)", markers=True)
+                    fig.update_layout(**_compact)
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                den_grouped = den_df.groupby(den_df["transaction_date"].dt.to_period(_period)).size()
+                num_grouped = num_df.groupby(num_df["transaction_date"].dt.to_period(_period)).size().reindex(den_grouped.index, fill_value=0)
+                ratio_df = (num_grouped / den_grouped).fillna(0).reset_index()
+                ratio_df.columns = ["period", "fraud_exposure"]
+                ratio_df["period"] = ratio_df["period"].astype(str)
+                if ratio_df.empty:
+                    st.info("No data for Fraud Exposure.")
+                else:
+                    fig = px.line(ratio_df, x="period", y="fraud_exposure", title="Fraud Exposure (%)", markers=True)
+                    fig.update_layout(**_compact)
+                    st.plotly_chart(fig, use_container_width=True)
 
-        st.divider()
+        with r2c2:
+            metric_df = df
+            if _dim_col and _dim_col in metric_df.columns:
+                grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col]).size().reset_index()
+                grouped.columns = ["period", _dim_col, "payment_method_growth"]
+                grouped["period"] = grouped["period"].astype(str)
+                fig = px.bar(grouped, x="period", y="payment_method_growth", color=_dim_col, title="Payment Method Growth", barmode="group")
+            else:
+                grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period)).size().reset_index()
+                grouped.columns = ["period", "payment_method_growth"]
+                grouped["period"] = grouped["period"].astype(str)
+                fig = px.bar(grouped, x="period", y="payment_method_growth", title="Payment Method Growth")
+            fig.update_layout(**_compact)
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("Payment Method Growth")
-
-        _dim_options_payment_method_growth = ['transaction_type', 'payment_method', 'merchant_category', 'risk_tier', 'geography', 'settlement_days', 'fraud_flag', 'settled_flag', 'chargeback_flag']
-        _sel_dim_payment_method_growth = st.selectbox(
-            "Break down by", ["(none)"] + _dim_options_payment_method_growth,
-            key="dim_picker_payment_method_growth")
-
-        metric_df = df
-        grouped = metric_df.groupby(metric_df["transaction_date"].dt.to_period(_period)).size().reset_index()
-        grouped.columns = ["period", "payment_method_growth"]
-        grouped["period"] = grouped["period"].astype(str)
-
-        fig = px.bar(grouped, x="period", y="payment_method_growth", title="Payment Method Growth Over Time")
-        st.plotly_chart(fig, use_container_width=True)
-
-        if _sel_dim_payment_method_growth != "(none)":
-            _dim_col = _sel_dim_payment_method_growth
-            _dim_label = _dim_col.replace("_", " ").title()
-            if _dim_col in metric_df.columns:
-                dim_grouped = metric_df.groupby([metric_df["transaction_date"].dt.to_period(_period), _dim_col]).size().reset_index()
-                dim_grouped.columns = ["period", _dim_col, "payment_method_growth"]
-                dim_grouped["period"] = dim_grouped["period"].astype(str)
-                fig2 = px.bar(dim_grouped, x="period", y="payment_method_growth", color=_dim_col, title=f"Payment Method Growth by {_dim_label}", barmode="group")
-                st.plotly_chart(fig2, use_container_width=True)
-
-        st.divider()
+        with r2c3:
+            st.markdown("**KPI Summary**")
+            st.metric("Total Rows", f"{len(df):,}")
+            if "transaction_date" in df.columns:
+                _min = df["transaction_date"].min().strftime("%Y-%m-%d")
+                _max = df["transaction_date"].max().strftime("%Y-%m-%d")
+                st.metric("Date Range", f"{_min} to {_max}")
+            if "settled_flag" in df.columns:
+                _settle_pct = df["settled_flag"].mean() * 100
+                st.metric("Settlement Rate", f"{_settle_pct:.1f}%")
 
     with tabs[1]:
         st.header("Data Quality Summary")
